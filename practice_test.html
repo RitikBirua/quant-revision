@@ -104,6 +104,30 @@
   .badge.answered-correct{background:var(--green);}
   .badge.answered-wrong{background:var(--red);}
 
+  .timer-badge{
+    font-size:12px;
+    font-weight:600;
+    padding:3px 10px;
+    border-radius:10px;
+    background:#eef3f6;
+    color:var(--text);
+    border:1px solid var(--border);
+  }
+  .timer-badge.warning{
+    background:#fff3d6;
+    color:#8a6300;
+    border-color:#f2d98c;
+  }
+  .timer-badge.overtime{
+    background:#fdeaea;
+    color:var(--red);
+    border-color:#f5b8b8;
+  }
+  .timer-badge.done{
+    background:#eaf3f8;
+    color:var(--muted);
+  }
+
   .q-text{
     font-size:15px;
     line-height:1.5;
@@ -393,6 +417,16 @@ let questions = [];
 let attempts = {}; // question_id -> {selected_option, is_correct}
 let currentIndex = 0;
 let questionStartTime = Date.now();
+let timerInterval = null;
+const QUESTION_TIME_LIMIT_SECONDS = 90; // 1 min 30 sec per question
+
+function formatTime(totalSeconds) {
+  const sign = totalSeconds < 0 ? '-' : '';
+  const abs = Math.abs(totalSeconds);
+  const mins = Math.floor(abs / 60);
+  const secs = abs % 60;
+  return `${sign}${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 const optionLetters = ['a','b','c','d'];
 
@@ -489,6 +523,11 @@ function renderQuestion() {
   const attempt = attempts[q.id];
   questionStartTime = Date.now();
 
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
   let badgeHtml = '<span class="badge skipped">Not attempted</span>';
   if (attempt) {
     badgeHtml = attempt.is_correct
@@ -524,10 +563,21 @@ function renderQuestion() {
     <button class="nav-btn" id="submitBtn" style="margin-bottom:20px;">Submit Answer</button>
   `;
 
+  // Timer badge: for an answered question, show the fixed time it took.
+  // For an unanswered one, show a live countdown from 1:30.
+  let timerBadgeHtml;
+  if (attempt) {
+    const taken = attempt.time_taken_seconds != null ? attempt.time_taken_seconds : 0;
+    timerBadgeHtml = `<span class="timer-badge done" id="timerBadge">Time taken: ${formatTime(taken)}</span>`;
+  } else {
+    timerBadgeHtml = `<span class="timer-badge" id="timerBadge">${formatTime(QUESTION_TIME_LIMIT_SECONDS)}</span>`;
+  }
+
   document.getElementById('mainPanel').innerHTML = `
     <div class="q-header">
       <span class="q-number">Question No. ${currentIndex + 1} of ${questions.length}</span>
       ${badgeHtml}
+      ${timerBadgeHtml}
     </div>
     <div class="q-text">${q.question_text}</div>
     <div class="options">${optionsHtml}</div>
@@ -541,7 +591,30 @@ function renderQuestion() {
 
   if (!attempt) {
     document.getElementById('submitBtn').onclick = () => submitAnswer(q);
+    startTimer();
   }
+}
+
+function startTimer() {
+  const badge = document.getElementById('timerBadge');
+  if (!badge) return;
+
+  timerInterval = setInterval(() => {
+    const elapsed = Math.round((Date.now() - questionStartTime) / 1000);
+    const remaining = QUESTION_TIME_LIMIT_SECONDS - elapsed;
+    const badgeEl = document.getElementById('timerBadge');
+    if (!badgeEl) {
+      clearInterval(timerInterval);
+      return;
+    }
+    badgeEl.textContent = formatTime(remaining);
+    badgeEl.classList.remove('warning', 'overtime');
+    if (remaining < 0) {
+      badgeEl.classList.add('overtime');
+    } else if (remaining <= 20) {
+      badgeEl.classList.add('warning');
+    }
+  }, 1000);
 }
 
 async function submitAnswer(q) {
@@ -549,6 +622,10 @@ async function submitAnswer(q) {
   if (!selected) {
     alert('Please select an option first.');
     return;
+  }
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
   }
   const selectedOption = selected.value;
   const isCorrect = selectedOption === q.correct_option;
