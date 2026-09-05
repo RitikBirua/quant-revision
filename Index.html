@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Practice Test - Profit and Loss</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --teal:#0e97b8;
+    --teal-dark:#0c7fa0;
+    --panel-bg:#eaf3f8;
+    --border:#dfe6ea;
+    --text:#26333c;
+    --muted:#6b7a84;
+    --green:#22a55b;
+    --red:#e13e3e;
+    --yellow:#f2b90c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Segoe UI",Arial,sans-serif;
+    color:var(--text);
+    background:#fff;
+    font-size:14px;
+  }
+  .topbar{
+    background:var(--teal);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 20px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .topbar-left{display:flex;align-items:center;gap:14px;}
+  .topbar h1{font-size:16px;margin:0;font-weight:600;}
+  .topbar .subtitle{font-size:12px;opacity:.9;margin-top:2px;}
+  .topbar-right{display:flex;align-items:center;gap:14px;}
+  .reset-btn{
+    background:rgba(0,0,0,.15);
+    padding:8px 14px;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.5px;
+    border-radius:2px;
+    border:none;
+    color:#fff;
+    cursor:pointer;
+  }
+
+  .secondbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 20px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .tab-btn{
+    background:var(--teal-dark);
+    color:#fff;
+    padding:8px 24px;
+    border-radius:3px;
+    font-size:13px;
+    font-weight:600;
+  }
+
+  .layout{
+    display:flex;
+    align-items:stretch;
+    flex-wrap:wrap;
+  }
+  .main{
+    flex:1;
+    min-width:300px;
+    padding:16px 20px;
+  }
+  .sidebar{
+    width:290px;
+    background:var(--panel-bg);
+    padding:16px;
+    border-left:1px solid var(--border);
+  }
+
+  .q-header{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:16px;
+  }
+  .q-number{font-weight:700;}
+  .badge{
+    padding:2px 10px;
+    border-radius:10px;
+    font-size:12px;
+    color:#fff;
+  }
+  .badge.skipped{background:#8a97a1;}
+  .badge.answered-correct{background:var(--green);}
+  .badge.answered-wrong{background:var(--red);}
+
+  .timer-badge{
+    font-size:12px;
+    font-weight:600;
+    padding:3px 10px;
+    border-radius:10px;
+    background:#eef3f6;
+    color:var(--text);
+    border:1px solid var(--border);
+  }
+  .timer-badge.warning{
+    background:#fff3d6;
+    color:#8a6300;
+    border-color:#f2d98c;
+  }
+  .timer-badge.overtime{
+    background:#fdeaea;
+    color:var(--red);
+    border-color:#f5b8b8;
+  }
+  .timer-badge.done{
+    background:#eaf3f8;
+    color:var(--muted);
+  }
+
+  .q-text{
+    font-size:15px;
+    line-height:1.5;
+    margin:18px 0 26px 0;
+    white-space:pre-wrap;
+  }
+
+  .options{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    margin-bottom:30px;
+  }
+  .option{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    cursor:pointer;
+    padding:10px 14px;
+    border-radius:6px;
+    border:1px solid var(--border);
+  }
+  .option:hover{background:#f7fafc;}
+  .option.correct{background:#e6f7ec;border-color:var(--green);}
+  .option.incorrect{background:#fdeaea;border-color:var(--red);}
+  .option input{
+    width:16px;height:16px;
+    accent-color:var(--teal);
+  }
+  .option label{font-size:14px;cursor:pointer;flex:1;}
+
+  .explanation-box{
+    background:#fbf1dc;
+    border:1px solid #f0dfb4;
+    border-radius:4px;
+    padding:12px 16px;
+    max-width:600px;
+    margin-bottom:20px;
+    display:none;
+  }
+  .explanation-box.show{display:block;}
+  .explanation-box .title{font-size:14px;font-weight:600;margin-bottom:4px;}
+  .explanation-box .body{font-size:13px;color:var(--muted);}
+
+  .bottombar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 20px;
+    background:#f4f5f6;
+    border-top:1px solid var(--border);
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .nav-btn{
+    background:#c9d3da;
+    color:#33424c;
+    padding:8px 20px;
+    border-radius:3px;
+    font-size:13px;
+    font-weight:600;
+    border:none;
+    cursor:pointer;
+  }
+  .nav-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .nav-btn:hover:not(:disabled){background:#b6c3cd;}
+
+  .user-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .user-info{display:flex;align-items:center;gap:8px;}
+  .avatar{
+    width:28px;height:28px;
+    border-radius:50%;
+    background:var(--teal);
+    color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;
+  }
+  .user-info .name{font-weight:600;font-size:14px;}
+
+  .stat-cards{
+    display:flex;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .stat-card{
+    flex:1;
+    background:#fff;
+    border-radius:4px;
+    padding:8px 10px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+  }
+  .stat-num{
+    color:#fff;
+    font-weight:700;
+    font-size:12px;
+    padding:2px 7px;
+    border-radius:3px;
+  }
+  .stat-num.correct{background:var(--green);}
+  .stat-num.unattempted{background:#8a97a1;}
+  .stat-num.incorrect{background:var(--red);}
+  .stat-card.partial{margin-bottom:14px;}
+
+  .section-title{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.4px;
+    margin:14px 0 10px 0;
+  }
+  .qgrid{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:8px;
+  }
+  .qbtn{
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:4px;
+    text-align:center;
+    padding:6px 0;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    color:var(--text);
+  }
+  .qbtn.correct{background:var(--green);color:#fff;border-color:var(--green);}
+  .qbtn.incorrect{background:var(--red);color:#fff;border-color:var(--red);}
+  .qbtn.current{
+    border:2px solid var(--text);
+    border-radius:50%;
+  }
+
+  .loading, .error {
+    padding:40px;
+    text-align:center;
+    color:var(--muted);
+  }
+  .error{color:var(--red);}
+
+  .add-btn{
+    background:rgba(255,255,255,.2);
+    padding:8px 14px;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.5px;
+    border-radius:2px;
+    border:none;
+    color:#fff;
+    cursor:pointer;
+  }
+  .add-btn:hover{background:rgba(255,255,255,.3);}
+
+  .modal-overlay{
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,.4);
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:30px 16px;
+    overflow-y:auto;
+    z-index:100;
+  }
+  .modal{
+    background:#fff;
+    border-radius:6px;
+    max-width:560px;
+    width:100%;
+    padding:24px;
+  }
+  .modal h2{margin:0 0 4px 0;font-size:18px;}
+  .modal .modal-sub{font-size:12px;color:var(--muted);margin-bottom:18px;}
+  .form-group{margin-bottom:14px;}
+  .form-group label{
+    display:block;
+    font-size:12px;
+    font-weight:600;
+    margin-bottom:5px;
+    color:var(--text);
+  }
+  .form-group textarea,
+  .form-group input[type="text"]{
+    width:100%;
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:4px;
+    font-size:14px;
+    font-family:inherit;
+    resize:vertical;
+  }
+  .form-group textarea{min-height:60px;}
+  .option-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .option-row input[type="radio"]{
+    width:16px;height:16px;
+    accent-color:var(--teal);
+    flex-shrink:0;
+  }
+  .option-row input[type="text"]{flex:1;}
+  .option-row .opt-tag{
+    font-size:12px;
+    font-weight:700;
+    width:16px;
+    color:var(--muted);
+  }
+  .form-hint{font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:14px;}
+  .modal-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+    margin-top:18px;
+  }
+  .btn-primary{
+    background:var(--teal);
+    color:#fff;
+    border:none;
+    padding:9px 20px;
+    border-radius:4px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn-primary:hover{background:var(--teal-dark);}
+  .btn-secondary{
+    background:#eee;
+    color:var(--text);
+    border:none;
+    padding:9px 20px;
+    border-radius:4px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn-secondary:hover{background:#e0e0e0;}
+  .form-msg{
+    font-size:12px;
+    margin-top:10px;
+    padding:8px 10px;
+    border-radius:4px;
+    display:none;
+  }
+  .form-msg.show{display:block;}
+  .form-msg.success{background:#e6f7ec;color:#1a7a42;}
+  .form-msg.error{background:#fdeaea;color:#b53030;}
+
+  /* Summary / analysis page */
+  .summary-btn{
+    background:#dfe9ee;
+    color:var(--teal-dark);
+    border:none;
+    padding:8px 16px;
+    border-radius:3px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .summary-btn:hover{background:#cfe1e9;}
+
+  .summary-page{
+    padding:24px 30px;
+    max-width:960px;
+    margin:0 auto;
+  }
+  .summary-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .summary-header h2{margin:0;font-size:20px;}
+  .summary-cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+    gap:12px;
+    margin-bottom:26px;
+  }
+  .summary-card{
+    background:var(--panel-bg);
+    border-radius:6px;
+    padding:16px;
+    text-align:center;
+  }
+  .summary-card .num{font-size:26px;font-weight:700;}
+  .summary-card .label{font-size:12px;color:var(--muted);margin-top:4px;}
+  .summary-card.correct .num{color:var(--green);}
+  .summary-card.incorrect .num{color:var(--red);}
+  .summary-card.unattempted .num{color:var(--muted);}
+  .summary-card.accuracy .num{color:var(--teal-dark);}
+
+  .score-bar-wrap{
+    background:#eee;
+    border-radius:8px;
+    height:16px;
+    overflow:hidden;
+    display:flex;
+    margin-bottom:26px;
+  }
+  .score-bar-seg{height:100%;}
+  .score-bar-seg.correct{background:var(--green);}
+  .score-bar-seg.incorrect{background:var(--red);}
+  .score-bar-seg.unattempted{background:#ccd4d9;}
+
+  .time-summary{
+    display:flex;
+    gap:24px;
+    margin-bottom:26px;
+    flex-wrap:wrap;
+    font-size:13px;
+  }
+  .time-summary div b{display:block;font-size:18px;color:var(--text);}
+
+  .review-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  .review-table th{
+    text-align:left;
+    padding:8px 10px;
+    border-bottom:2px solid var(--border);
+    font-size:11px;
+    letter-spacing:.3px;
+    color:var(--muted);
+  }
+  .review-table td{
+    padding:10px;
+    border-bottom:1px solid var(--border);
+    vertical-align:top;
+  }
+  .review-table tr.review-row{cursor:pointer;}
+  .review-table tr.review-row:hover td{background:#f7fafc;}
+  .review-q-text{max-width:320px;}
+  .result-tag{
+    font-size:11px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:10px;
+    color:#fff;
+    display:inline-block;
+  }
+  .result-tag.correct{background:var(--green);}
+  .result-tag.incorrect{background:var(--red);}
+  .result-tag.skipped{background:#8a97a1;}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="loading">Loading questions&hellip;</div>
+</div>
+
+<script>
+// ====== CONFIGURE YOUR SUPABASE PROJECT HERE ======
+const SUPABASE_URL = "https://zmkxrwrooyrnycnkfxye.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpta3hyd3Jvb3lybnljbmtmeHllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1ODMyOTksImV4cCI6MjEwNDE1OTI5OX0.yLdFuLVIJHOHXX12TSbWxYf3_we_Uwhd9KA2ar863ME";
+const TOPIC = "Profit and Loss";
+// ===================================================
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Per-browser anonymous session id, persisted in-memory for this page load
+// (kept in a JS variable + localStorage so stats survive refresh)
+function getSessionId() {
+  let id = localStorage.getItem('practice_session_id');
+  if (!id) {
+    id = 'sess_' + Math.random().toString(36).slice(2) + Date.now();
+    localStorage.setItem('practice_session_id', id);
+  }
+  return id;
+}
+const SESSION_ID = getSessionId();
+
+let questions = [];
+let attempts = {}; // question_id -> {selected_option, is_correct}
+let currentIndex = 0;
+let questionStartTime = Date.now();
+let timerInterval = null;
+const QUESTION_TIME_LIMIT_SECONDS = 90; // 1 min 30 sec per question
+
+function formatTime(totalSeconds) {
+  const sign = totalSeconds < 0 ? '-' : '';
+  const abs = Math.abs(totalSeconds);
+  const mins = Math.floor(abs / 60);
+  const secs = abs % 60;
+  return `${sign}${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+const optionLetters = ['a','b','c','d'];
+
+async function init() {
+  try {
+    const { data: qData, error: qError } = await supabaseClient
+      .from('questions')
+      .select('*')
+      .eq('topic', TOPIC)
+      .order('id', { ascending: true });
+
+    if (qError) throw qError;
+    if (!qData || qData.length === 0) {
+      renderError("No questions found for topic '" + TOPIC + "'. Make sure you ran the SQL setup script in Supabase.");
+      return;
+    }
+    questions = qData;
+
+    const { data: aData, error: aError } = await supabaseClient
+      .from('attempts')
+      .select('*')
+      .eq('session_id', SESSION_ID);
+
+    if (!aError && aData) {
+      aData.forEach(a => {
+        // keep the latest attempt per question
+        attempts[a.question_id] = a;
+      });
+    }
+
+    renderApp();
+  } catch (err) {
+    renderError("Failed to load from Supabase: " + err.message);
+  }
+}
+
+function renderError(msg) {
+  document.getElementById('app').innerHTML = `<div class="error">${msg}</div>`;
+}
+
+function computeStats() {
+  let correct = 0, incorrect = 0;
+  questions.forEach(q => {
+    const a = attempts[q.id];
+    if (a) {
+      if (a.is_correct) correct++;
+      else incorrect++;
+    }
+  });
+  const unattempted = questions.length - correct - incorrect;
+  return { correct, incorrect, unattempted };
+}
+
+function renderApp() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="topbar-left">
+        <div>
+          <h1>Practice Test</h1>
+          <div class="subtitle">${TOPIC}</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="add-btn" id="addQuestionBtn">+ ADD QUESTION</button>
+        <button class="reset-btn" id="resetBtn">RESET PROGRESS</button>
+      </div>
+    </div>
+    <div class="secondbar">
+      <div class="tab-btn">Test</div>
+    </div>
+    <div class="layout">
+      <div class="main" id="mainPanel"></div>
+      <div class="sidebar" id="sidebarPanel"></div>
+    </div>
+    <div class="bottombar">
+      <button class="nav-btn" id="prevBtn">Previous</button>
+      <div id="progressLabel" style="font-size:13px;color:var(--muted);"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="nav-btn" id="nextBtn">Next</button>
+        <button class="summary-btn" id="summaryBtn">View Summary</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('resetBtn').onclick = resetProgress;
+  document.getElementById('addQuestionBtn').onclick = openAddQuestionModal;
+  document.getElementById('summaryBtn').onclick = renderSummaryPage;
+  document.getElementById('prevBtn').onclick = () => { if (currentIndex > 0) { currentIndex--; renderQuestion(); renderSidebar(); } };
+  document.getElementById('nextBtn').onclick = () => { if (currentIndex < questions.length - 1) { currentIndex++; renderQuestion(); renderSidebar(); } };
+
+  renderQuestion();
+  renderSidebar();
+}
+
+function renderQuestion() {
+  const q = questions[currentIndex];
+  const attempt = attempts[q.id];
+  questionStartTime = Date.now();
+
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  let badgeHtml = '<span class="badge skipped">Not attempted</span>';
+  if (attempt) {
+    badgeHtml = attempt.is_correct
+      ? '<span class="badge answered-correct">Correct</span>'
+      : '<span class="badge answered-wrong">Incorrect</span>';
+  }
+
+  const optionsHtml = optionLetters.map(letter => {
+    const optText = q['option_' + letter];
+    let cls = 'option';
+    if (attempt) {
+      if (letter === q.correct_option) cls += ' correct';
+      else if (letter === attempt.selected_option) cls += ' incorrect';
+    }
+    const checked = attempt && attempt.selected_option === letter ? 'checked' : '';
+    const disabled = attempt ? 'disabled' : '';
+    return `
+      <div class="${cls}">
+        <input type="radio" name="answer" id="opt_${letter}" value="${letter}" ${checked} ${disabled}>
+        <label for="opt_${letter}">${optText}</label>
+      </div>
+    `;
+  }).join('');
+
+  const explanationHtml = attempt ? `
+    <div class="explanation-box show">
+      <div class="title">${attempt.is_correct ? 'Correct!' : 'Not quite.'} Correct answer: ${q['option_' + q.correct_option]}</div>
+      <div class="body">${q.explanation || ''}</div>
+    </div>
+  ` : '';
+
+  const submitHtml = attempt ? '' : `
+    <button class="nav-btn" id="submitBtn" style="margin-bottom:20px;">Submit Answer</button>
+  `;
+
+  // Timer badge: for an answered question, show the fixed time it took.
+  // For an unanswered one, show a live countdown from 1:30.
+  let timerBadgeHtml;
+  if (attempt) {
+    const taken = attempt.time_taken_seconds != null ? attempt.time_taken_seconds : 0;
+    timerBadgeHtml = `<span class="timer-badge done" id="timerBadge">Time taken: ${formatTime(taken)}</span>`;
+  } else {
+    timerBadgeHtml = `<span class="timer-badge" id="timerBadge">${formatTime(QUESTION_TIME_LIMIT_SECONDS)}</span>`;
+  }
+
+  document.getElementById('mainPanel').innerHTML = `
+    <div class="q-header">
+      <span class="q-number">Question No. ${currentIndex + 1} of ${questions.length}</span>
+      ${badgeHtml}
+      ${timerBadgeHtml}
+    </div>
+    <div class="q-text">${q.question_text}</div>
+    <div class="options">${optionsHtml}</div>
+    ${submitHtml}
+    ${explanationHtml}
+  `;
+
+  document.getElementById('progressLabel').textContent = `${currentIndex + 1} / ${questions.length}`;
+  document.getElementById('prevBtn').disabled = currentIndex === 0;
+  document.getElementById('nextBtn').disabled = currentIndex === questions.length - 1;
+
+  if (!attempt) {
+    document.getElementById('submitBtn').onclick = () => submitAnswer(q);
+    startTimer();
+  }
+}
+
+function startTimer() {
+  const badge = document.getElementById('timerBadge');
+  if (!badge) return;
+
+  timerInterval = setInterval(() => {
+    const elapsed = Math.round((Date.now() - questionStartTime) / 1000);
+    const remaining = QUESTION_TIME_LIMIT_SECONDS - elapsed;
+    const badgeEl = document.getElementById('timerBadge');
+    if (!badgeEl) {
+      clearInterval(timerInterval);
+      return;
+    }
+    badgeEl.textContent = formatTime(remaining);
+    badgeEl.classList.remove('warning', 'overtime');
+    if (remaining < 0) {
+      badgeEl.classList.add('overtime');
+    } else if (remaining <= 20) {
+      badgeEl.classList.add('warning');
+    }
+  }, 1000);
+}
+
+async function submitAnswer(q) {
+  const selected = document.querySelector('input[name="answer"]:checked');
+  if (!selected) {
+    alert('Please select an option first.');
+    return;
+  }
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  const selectedOption = selected.value;
+  const isCorrect = selectedOption === q.correct_option;
+  const timeTaken = Math.round((Date.now() - questionStartTime) / 1000);
+
+  const record = {
+    session_id: SESSION_ID,
+    question_id: q.id,
+    selected_option: selectedOption,
+    is_correct: isCorrect,
+    time_taken_seconds: timeTaken
+  };
+
+  attempts[q.id] = record;
+  renderQuestion();
+  renderSidebar();
+
+  try {
+    await supabaseClient.from('attempts').insert(record);
+  } catch (err) {
+    console.error('Failed to save attempt to Supabase:', err);
+  }
+}
+
+function renderSidebar() {
+  const stats = computeStats();
+  const qgridHtml = questions.map((q, idx) => {
+    const attempt = attempts[q.id];
+    let cls = 'qbtn';
+    if (attempt) cls += attempt.is_correct ? ' correct' : ' incorrect';
+    if (idx === currentIndex) cls += ' current';
+    return `<div class="${cls}" data-idx="${idx}">${idx + 1}</div>`;
+  }).join('');
+
+  document.getElementById('sidebarPanel').innerHTML = `
+    <div class="user-row">
+      <div class="user-info">
+        <div class="avatar">&#128100;</div>
+        <span class="name">You</span>
+      </div>
+    </div>
+    <div class="stat-cards">
+      <div class="stat-card"><span class="stat-num correct">${stats.correct}</span> Correct</div>
+      <div class="stat-card"><span class="stat-num unattempted">${stats.unattempted}</span> Unattempted</div>
+    </div>
+    <div class="stat-cards partial">
+      <div class="stat-card"><span class="stat-num incorrect">${stats.incorrect}</span> Incorrect</div>
+    </div>
+    <div class="section-title">SECTION : ${TOPIC}</div>
+    <div class="qgrid">${qgridHtml}</div>
+  `;
+
+  document.querySelectorAll('.qbtn').forEach(btn => {
+    btn.onclick = () => {
+      currentIndex = parseInt(btn.getAttribute('data-idx'), 10);
+      renderQuestion();
+      renderSidebar();
+    };
+  });
+}
+
+async function resetProgress() {
+  if (!confirm('This will clear your saved answers for this topic. Continue?')) return;
+  try {
+    await supabaseClient.from('attempts').delete().eq('session_id', SESSION_ID);
+  } catch (err) {
+    console.error('Failed to clear attempts in Supabase:', err);
+  }
+  attempts = {};
+  currentIndex = 0;
+  renderQuestion();
+  renderSidebar();
+}
+
+function renderSummaryPage() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  const stats = computeStats();
+  const total = questions.length;
+  const attemptedCount = stats.correct + stats.incorrect;
+  const accuracy = attemptedCount > 0 ? Math.round((stats.correct / attemptedCount) * 100) : 0;
+
+  const totalTimeTaken = questions.reduce((sum, q) => {
+    const a = attempts[q.id];
+    return sum + (a && a.time_taken_seconds != null ? a.time_taken_seconds : 0);
+  }, 0);
+  const avgTime = attemptedCount > 0 ? Math.round(totalTimeTaken / attemptedCount) : 0;
+  const allocatedTime = total * QUESTION_TIME_LIMIT_SECONDS;
+
+  const correctPct = (stats.correct / total) * 100;
+  const incorrectPct = (stats.incorrect / total) * 100;
+  const unattemptedPct = (stats.unattempted / total) * 100;
+
+  const rowsHtml = questions.map((q, idx) => {
+    const a = attempts[q.id];
+    let resultTag, yourAnswer, timeTaken;
+    if (!a) {
+      resultTag = '<span class="result-tag skipped">Skipped</span>';
+      yourAnswer = '—';
+      timeTaken = '—';
+    } else {
+      resultTag = a.is_correct
+        ? '<span class="result-tag correct">Correct</span>'
+        : '<span class="result-tag incorrect">Incorrect</span>';
+      yourAnswer = q['option_' + a.selected_option];
+      timeTaken = formatTime(a.time_taken_seconds != null ? a.time_taken_seconds : 0);
+    }
+    const correctAnswer = q['option_' + q.correct_option];
+    const shortQ = q.question_text.length > 90 ? q.question_text.slice(0, 90) + '…' : q.question_text;
+
+    return `
+      <tr class="review-row" data-idx="${idx}">
+        <td>${idx + 1}</td>
+        <td class="review-q-text">${shortQ}</td>
+        <td>${yourAnswer}</td>
+        <td>${correctAnswer}</td>
+        <td>${resultTag}</td>
+        <td>${timeTaken}</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('app').innerHTML = `
+    <div class="topbar">
+      <div class="topbar-left">
+        <div>
+          <h1>Test Summary</h1>
+          <div class="subtitle">${TOPIC}</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="reset-btn" id="backToTestBtn">&larr; BACK TO TEST</button>
+      </div>
+    </div>
+    <div class="summary-page">
+      <div class="summary-header">
+        <h2>How you did</h2>
+      </div>
+
+      <div class="summary-cards">
+        <div class="summary-card correct">
+          <div class="num">${stats.correct}</div>
+          <div class="label">Correct</div>
+        </div>
+        <div class="summary-card incorrect">
+          <div class="num">${stats.incorrect}</div>
+          <div class="label">Incorrect</div>
+        </div>
+        <div class="summary-card unattempted">
+          <div class="num">${stats.unattempted}</div>
+          <div class="label">Unattempted</div>
+        </div>
+        <div class="summary-card accuracy">
+          <div class="num">${accuracy}%</div>
+          <div class="label">Accuracy (of attempted)</div>
+        </div>
+      </div>
+
+      <div class="score-bar-wrap">
+        <div class="score-bar-seg correct" style="width:${correctPct}%"></div>
+        <div class="score-bar-seg incorrect" style="width:${incorrectPct}%"></div>
+        <div class="score-bar-seg unattempted" style="width:${unattemptedPct}%"></div>
+      </div>
+
+      <div class="time-summary">
+        <div><b>${formatTime(totalTimeTaken)}</b>Total time spent</div>
+        <div><b>${formatTime(avgTime)}</b>Avg. time / question</div>
+        <div><b>${formatTime(allocatedTime)}</b>Allocated time (${total} × 1:30)</div>
+      </div>
+
+      <div class="section-title">QUESTION-BY-QUESTION REVIEW</div>
+      <table class="review-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Question</th>
+            <th>Your answer</th>
+            <th>Correct answer</th>
+            <th>Result</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('backToTestBtn').onclick = () => {
+    renderApp();
+  };
+
+  document.querySelectorAll('.review-row').forEach(row => {
+    row.onclick = () => {
+      currentIndex = parseInt(row.getAttribute('data-idx'), 10);
+      renderApp();
+    };
+  });
+}
+
+function openAddQuestionModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'addModalOverlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Add a question</h2>
+      <div class="modal-sub">Topic: ${TOPIC}</div>
+
+      <div class="form-group">
+        <label for="newQuestionText">Question</label>
+        <textarea id="newQuestionText" placeholder="e.g. A shopkeeper sells an item at..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Options (select the radio next to the correct one)</label>
+        <div class="option-row">
+          <input type="radio" name="newCorrect" value="a" checked>
+          <span class="opt-tag">A</span>
+          <input type="text" id="newOptA" placeholder="Option A">
+        </div>
+        <div class="option-row">
+          <input type="radio" name="newCorrect" value="b">
+          <span class="opt-tag">B</span>
+          <input type="text" id="newOptB" placeholder="Option B">
+        </div>
+        <div class="option-row">
+          <input type="radio" name="newCorrect" value="c">
+          <span class="opt-tag">C</span>
+          <input type="text" id="newOptC" placeholder="Option C">
+        </div>
+        <div class="option-row">
+          <input type="radio" name="newCorrect" value="d">
+          <span class="opt-tag">D</span>
+          <input type="text" id="newOptD" placeholder="Option D">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="newExplanation">Explanation (optional)</label>
+        <textarea id="newExplanation" placeholder="Shown after the question is answered"></textarea>
+      </div>
+      <div class="form-hint">Leave blank if you don't want to add one.</div>
+
+      <div class="form-msg" id="addFormMsg"></div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="cancelAddBtn">Cancel</button>
+        <button class="btn-primary" id="saveAddBtn">Save question</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('cancelAddBtn').onclick = closeAddQuestionModal;
+  overlay.onclick = (e) => { if (e.target === overlay) closeAddQuestionModal(); };
+  document.getElementById('saveAddBtn').onclick = saveNewQuestion;
+}
+
+function closeAddQuestionModal() {
+  const overlay = document.getElementById('addModalOverlay');
+  if (overlay) overlay.remove();
+}
+
+async function saveNewQuestion() {
+  const questionText = document.getElementById('newQuestionText').value.trim();
+  const optA = document.getElementById('newOptA').value.trim();
+  const optB = document.getElementById('newOptB').value.trim();
+  const optC = document.getElementById('newOptC').value.trim();
+  const optD = document.getElementById('newOptD').value.trim();
+  const explanation = document.getElementById('newExplanation').value.trim();
+  const correctRadio = document.querySelector('input[name="newCorrect"]:checked');
+
+  const msgEl = document.getElementById('addFormMsg');
+  msgEl.className = 'form-msg';
+
+  if (!questionText || !optA || !optB || !optC || !optD) {
+    msgEl.textContent = 'Please fill in the question and all four options.';
+    msgEl.classList.add('show', 'error');
+    return;
+  }
+
+  const newRecord = {
+    topic: TOPIC,
+    question_text: questionText,
+    option_a: optA,
+    option_b: optB,
+    option_c: optC,
+    option_d: optD,
+    correct_option: correctRadio.value,
+    explanation: explanation || null
+  };
+
+  const saveBtn = document.getElementById('saveAddBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('questions')
+      .insert(newRecord)
+      .select();
+
+    if (error) throw error;
+
+    questions.push(data[0]);
+    msgEl.textContent = 'Question added! It now appears at the end of the list.';
+    msgEl.classList.add('show', 'success');
+
+    setTimeout(() => {
+      closeAddQuestionModal();
+      renderSidebar();
+    }, 900);
+  } catch (err) {
+    msgEl.textContent = 'Failed to save: ' + err.message;
+    msgEl.classList.add('show', 'error');
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save question';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
