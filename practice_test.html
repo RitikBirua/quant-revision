@@ -384,6 +384,107 @@
   .form-msg.show{display:block;}
   .form-msg.success{background:#e6f7ec;color:#1a7a42;}
   .form-msg.error{background:#fdeaea;color:#b53030;}
+
+  /* Summary / analysis page */
+  .summary-btn{
+    background:#dfe9ee;
+    color:var(--teal-dark);
+    border:none;
+    padding:8px 16px;
+    border-radius:3px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .summary-btn:hover{background:#cfe1e9;}
+
+  .summary-page{
+    padding:24px 30px;
+    max-width:960px;
+    margin:0 auto;
+  }
+  .summary-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .summary-header h2{margin:0;font-size:20px;}
+  .summary-cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+    gap:12px;
+    margin-bottom:26px;
+  }
+  .summary-card{
+    background:var(--panel-bg);
+    border-radius:6px;
+    padding:16px;
+    text-align:center;
+  }
+  .summary-card .num{font-size:26px;font-weight:700;}
+  .summary-card .label{font-size:12px;color:var(--muted);margin-top:4px;}
+  .summary-card.correct .num{color:var(--green);}
+  .summary-card.incorrect .num{color:var(--red);}
+  .summary-card.unattempted .num{color:var(--muted);}
+  .summary-card.accuracy .num{color:var(--teal-dark);}
+
+  .score-bar-wrap{
+    background:#eee;
+    border-radius:8px;
+    height:16px;
+    overflow:hidden;
+    display:flex;
+    margin-bottom:26px;
+  }
+  .score-bar-seg{height:100%;}
+  .score-bar-seg.correct{background:var(--green);}
+  .score-bar-seg.incorrect{background:var(--red);}
+  .score-bar-seg.unattempted{background:#ccd4d9;}
+
+  .time-summary{
+    display:flex;
+    gap:24px;
+    margin-bottom:26px;
+    flex-wrap:wrap;
+    font-size:13px;
+  }
+  .time-summary div b{display:block;font-size:18px;color:var(--text);}
+
+  .review-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  .review-table th{
+    text-align:left;
+    padding:8px 10px;
+    border-bottom:2px solid var(--border);
+    font-size:11px;
+    letter-spacing:.3px;
+    color:var(--muted);
+  }
+  .review-table td{
+    padding:10px;
+    border-bottom:1px solid var(--border);
+    vertical-align:top;
+  }
+  .review-table tr.review-row{cursor:pointer;}
+  .review-table tr.review-row:hover td{background:#f7fafc;}
+  .review-q-text{max-width:320px;}
+  .result-tag{
+    font-size:11px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:10px;
+    color:#fff;
+    display:inline-block;
+  }
+  .result-tag.correct{background:var(--green);}
+  .result-tag.incorrect{background:var(--red);}
+  .result-tag.skipped{background:#8a97a1;}
 </style>
 </head>
 <body>
@@ -505,14 +606,18 @@ function renderApp() {
     <div class="bottombar">
       <button class="nav-btn" id="prevBtn">Previous</button>
       <div id="progressLabel" style="font-size:13px;color:var(--muted);"></div>
-      <button class="nav-btn" id="nextBtn">Next</button>
+      <div style="display:flex;gap:10px;">
+        <button class="nav-btn" id="nextBtn">Next</button>
+        <button class="summary-btn" id="summaryBtn">View Summary</button>
+      </div>
     </div>
   `;
 
   document.getElementById('resetBtn').onclick = resetProgress;
   document.getElementById('addQuestionBtn').onclick = openAddQuestionModal;
-  document.getElementById('prevBtn').onclick = () => { if (currentIndex > 0) { currentIndex--; renderQuestion(); } };
-  document.getElementById('nextBtn').onclick = () => { if (currentIndex < questions.length - 1) { currentIndex++; renderQuestion(); } };
+  document.getElementById('summaryBtn').onclick = renderSummaryPage;
+  document.getElementById('prevBtn').onclick = () => { if (currentIndex > 0) { currentIndex--; renderQuestion(); renderSidebar(); } };
+  document.getElementById('nextBtn').onclick = () => { if (currentIndex < questions.length - 1) { currentIndex++; renderQuestion(); renderSidebar(); } };
 
   renderQuestion();
   renderSidebar();
@@ -698,6 +803,134 @@ async function resetProgress() {
   currentIndex = 0;
   renderQuestion();
   renderSidebar();
+}
+
+function renderSummaryPage() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  const stats = computeStats();
+  const total = questions.length;
+  const attemptedCount = stats.correct + stats.incorrect;
+  const accuracy = attemptedCount > 0 ? Math.round((stats.correct / attemptedCount) * 100) : 0;
+
+  const totalTimeTaken = questions.reduce((sum, q) => {
+    const a = attempts[q.id];
+    return sum + (a && a.time_taken_seconds != null ? a.time_taken_seconds : 0);
+  }, 0);
+  const avgTime = attemptedCount > 0 ? Math.round(totalTimeTaken / attemptedCount) : 0;
+  const allocatedTime = total * QUESTION_TIME_LIMIT_SECONDS;
+
+  const correctPct = (stats.correct / total) * 100;
+  const incorrectPct = (stats.incorrect / total) * 100;
+  const unattemptedPct = (stats.unattempted / total) * 100;
+
+  const rowsHtml = questions.map((q, idx) => {
+    const a = attempts[q.id];
+    let resultTag, yourAnswer, timeTaken;
+    if (!a) {
+      resultTag = '<span class="result-tag skipped">Skipped</span>';
+      yourAnswer = '—';
+      timeTaken = '—';
+    } else {
+      resultTag = a.is_correct
+        ? '<span class="result-tag correct">Correct</span>'
+        : '<span class="result-tag incorrect">Incorrect</span>';
+      yourAnswer = q['option_' + a.selected_option];
+      timeTaken = formatTime(a.time_taken_seconds != null ? a.time_taken_seconds : 0);
+    }
+    const correctAnswer = q['option_' + q.correct_option];
+    const shortQ = q.question_text.length > 90 ? q.question_text.slice(0, 90) + '…' : q.question_text;
+
+    return `
+      <tr class="review-row" data-idx="${idx}">
+        <td>${idx + 1}</td>
+        <td class="review-q-text">${shortQ}</td>
+        <td>${yourAnswer}</td>
+        <td>${correctAnswer}</td>
+        <td>${resultTag}</td>
+        <td>${timeTaken}</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('app').innerHTML = `
+    <div class="topbar">
+      <div class="topbar-left">
+        <div>
+          <h1>Test Summary</h1>
+          <div class="subtitle">${TOPIC}</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="reset-btn" id="backToTestBtn">&larr; BACK TO TEST</button>
+      </div>
+    </div>
+    <div class="summary-page">
+      <div class="summary-header">
+        <h2>How you did</h2>
+      </div>
+
+      <div class="summary-cards">
+        <div class="summary-card correct">
+          <div class="num">${stats.correct}</div>
+          <div class="label">Correct</div>
+        </div>
+        <div class="summary-card incorrect">
+          <div class="num">${stats.incorrect}</div>
+          <div class="label">Incorrect</div>
+        </div>
+        <div class="summary-card unattempted">
+          <div class="num">${stats.unattempted}</div>
+          <div class="label">Unattempted</div>
+        </div>
+        <div class="summary-card accuracy">
+          <div class="num">${accuracy}%</div>
+          <div class="label">Accuracy (of attempted)</div>
+        </div>
+      </div>
+
+      <div class="score-bar-wrap">
+        <div class="score-bar-seg correct" style="width:${correctPct}%"></div>
+        <div class="score-bar-seg incorrect" style="width:${incorrectPct}%"></div>
+        <div class="score-bar-seg unattempted" style="width:${unattemptedPct}%"></div>
+      </div>
+
+      <div class="time-summary">
+        <div><b>${formatTime(totalTimeTaken)}</b>Total time spent</div>
+        <div><b>${formatTime(avgTime)}</b>Avg. time / question</div>
+        <div><b>${formatTime(allocatedTime)}</b>Allocated time (${total} × 1:30)</div>
+      </div>
+
+      <div class="section-title">QUESTION-BY-QUESTION REVIEW</div>
+      <table class="review-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Question</th>
+            <th>Your answer</th>
+            <th>Correct answer</th>
+            <th>Result</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('backToTestBtn').onclick = () => {
+    renderApp();
+  };
+
+  document.querySelectorAll('.review-row').forEach(row => {
+    row.onclick = () => {
+      currentIndex = parseInt(row.getAttribute('data-idx'), 10);
+      renderApp();
+    };
+  });
 }
 
 function openAddQuestionModal() {
