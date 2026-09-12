@@ -206,6 +206,14 @@
   .nav-btn:disabled{opacity:.5;cursor:not-allowed;}
   .nav-btn:hover:not(:disabled){background:#b6c3cd;}
 
+  .question-nav-row{
+    display:flex;
+    justify-content:space-between;
+    margin-top:10px;
+    padding-top:16px;
+    border-top:1px solid var(--border);
+  }
+
   .user-row{
     display:flex;
     align-items:center;
@@ -496,6 +504,27 @@
   .result-tag.correct{background:var(--green);}
   .result-tag.incorrect{background:var(--red);}
   .result-tag.skipped{background:#8a97a1;}
+
+  .attempt-history{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:4px;
+    font-size:12px;
+  }
+  .hist-item{
+    display:flex;
+    align-items:center;
+    gap:3px;
+    white-space:nowrap;
+  }
+  .hist-num{
+    color:var(--muted);
+    font-size:10px;
+  }
+  .hist-correct{color:var(--green);font-weight:600;}
+  .hist-incorrect{color:var(--red);font-weight:600;}
+  .hist-arrow{color:var(--muted);}
 </style>
 </head>
 <body>
@@ -528,7 +557,8 @@ let allTopics = [];
 let currentTopic = null;
 let questions = [];
 let allAttempts = {}; // question_id -> {selected_option, is_correct} (across all topics)
-let attempts = {};    // question_id -> attempt, filtered to the current topic's questions
+let attempts = {};    // question_id -> latest attempt, filtered to the current topic's questions
+let attemptsHistory = {}; // question_id -> [ all attempts for that question, oldest to newest ]
 let currentIndex = 0;
 let questionStartTime = Date.now();
 let timerInterval = null;
@@ -544,6 +574,79 @@ function formatTime(totalSeconds) {
 
 const optionLetters = ['a','b','c','d'];
 
+// ============================================================
+// URL ROUTING (hash-based, e.g. #/installments/q/5 or #/installments/summary)
+// Works on any static host with zero server configuration.
+// ============================================================
+let topicToSlugMap = {};  // "Profit and Loss" -> "profit-and-loss"
+let slugToTopicMap = {};  // "profit-and-loss" -> "Profit and Loss"
+let isApplyingHash = false; // guards against feedback loops
+
+function slugify(text) {
+  return text.toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function rebuildSlugMaps() {
+  topicToSlugMap = {};
+  slugToTopicMap = {};
+  allTopics.forEach(t => {
+    let slug = slugify(t);
+    // handle the unlikely case of two topics slugifying to the same thing
+    let base = slug, n = 2;
+    while (slugToTopicMap[slug] && slugToTopicMap[slug] !== t) {
+      slug = base + '-' + n; n++;
+    }
+    topicToSlugMap[t] = slug;
+    slugToTopicMap[slug] = t;
+  });
+}
+
+function parseHash() {
+  const raw = location.hash.replace(/^#\/?/, ''); // strip leading #/
+  if (!raw) return null;
+  const parts = raw.split('/').filter(Boolean);
+  const topicSlug = parts[0] || null;
+  const view = parts[1] === 'summary' ? 'summary' : 'test';
+  return { topicSlug, view };
+}
+
+function buildHash({ topicSlug, view }) {
+  let h = '#/' + topicSlug;
+  if (view === 'summary') h += '/summary';
+  return h;
+}
+
+function pushHash(state) {
+  const h = buildHash(state);
+  if (location.hash !== h) {
+    isApplyingHash = true;
+    history.pushState(null, '', h);
+    isApplyingHash = false;
+  }
+}
+
+// Called on back/forward navigation or when the hash is edited/pasted directly
+async function syncAppFromHash() {
+  if (isApplyingHash) return;
+  const parsed = parseHash();
+  if (!parsed || !slugToTopicMap[parsed.topicSlug]) return;
+
+  const topic = slugToTopicMap[parsed.topicSlug];
+  if (topic !== currentTopic) {
+    await loadTopic(topic, { skipHashUpdate: true });
+  }
+  if (parsed.view === 'summary') {
+    renderSummaryPage({ skipHashUpdate: true });
+  } else {
+    renderApp({ skipHashUpdate: true });
+  }
+}
+
+window.addEventListener('popstate', syncAppFromHash);
+window.addEventListener('hashchange', syncAppFromHash);
+
 async function init() {
   try {
     // 1. Find out which topics/chapters exist
@@ -557,29 +660,47 @@ async function init() {
       return;
     }
     allTopics = [...new Set(topicRows.map(r => r.topic))].sort();
+    rebuildSlugMaps();
 
-    // 2. Figure out which topic to start on (last used, if it still exists)
+    // 2. Figure out which topic to start on:
+    //    URL hash > last used (localStorage) > first available topic
+    const hashState = parseHash();
+    const hashTopic = hashState && slugToTopicMap[hashState.topicSlug];
     const savedTopic = localStorage.getItem('practice_current_topic');
-    currentTopic = (savedTopic && allTopics.includes(savedTopic)) ? savedTopic : allTopics[0];
+    currentTopic = hashTopic || (savedTopic && allTopics.includes(savedTopic) ? savedTopic : allTopics[0]);
 
     // 3. Load all attempts for this session once (works across every topic,
-    //    since question_id is unique per topic)
+    //    since question_id is unique per topic). Ordered oldest-first so we
+    //    can build a per-question history (for tracking time improvement
+    //    across retries) while "allAttempts" naturally ends up holding the
+    //    latest attempt for each question.
     const { data: aData, error: aError } = await supabaseClient
       .from('attempts')
       .select('*')
-      .eq('session_id', SESSION_ID);
+      .eq('session_id', SESSION_ID)
+      .order('created_at', { ascending: true });
 
     if (!aError && aData) {
-      aData.forEach(a => { allAttempts[a.question_id] = a; });
+      aData.forEach(a => {
+        allAttempts[a.question_id] = a;
+        if (!attemptsHistory[a.question_id]) attemptsHistory[a.question_id] = [];
+        attemptsHistory[a.question_id].push(a);
+      });
     }
 
-    await loadTopic(currentTopic);
+    await loadTopic(currentTopic, { skipHashUpdate: true });
+
+    // Apply summary view from the URL, if present
+    if (hashState && hashState.view === 'summary') {
+      renderSummaryPage({ skipHashUpdate: true });
+    }
   } catch (err) {
     renderError("Failed to load from Supabase: " + err.message);
   }
 }
 
-async function loadTopic(topic) {
+async function loadTopic(topic, opts) {
+  opts = opts || {};
   currentTopic = topic;
   currentIndex = 0;
   localStorage.setItem('practice_current_topic', topic);
@@ -601,7 +722,10 @@ async function loadTopic(topic) {
     if (allAttempts[q.id]) attempts[q.id] = allAttempts[q.id];
   });
 
-  renderApp();
+  if (!opts.skipHashUpdate) {
+    pushHash({ topicSlug: topicToSlugMap[topic] });
+  }
+  renderApp({ skipHashUpdate: true }); // hash already handled above (or by caller)
 }
 
 
@@ -622,7 +746,8 @@ function computeStats() {
   return { correct, incorrect, unattempted };
 }
 
-function renderApp() {
+function renderApp(opts) {
+  opts = opts || {};
   const app = document.getElementById('app');
   const tabsHtml = allTopics.map(t => {
     const activeCls = t === currentTopic ? ' active' : '';
@@ -650,20 +775,14 @@ function renderApp() {
       <div class="sidebar" id="sidebarPanel"></div>
     </div>
     <div class="bottombar">
-      <button class="nav-btn" id="prevBtn">Previous</button>
       <div id="progressLabel" style="font-size:13px;color:var(--muted);"></div>
-      <div style="display:flex;gap:10px;">
-        <button class="nav-btn" id="nextBtn">Next</button>
-        <button class="summary-btn" id="summaryBtn">View Summary</button>
-      </div>
+      <button class="summary-btn" id="summaryBtn">View Summary</button>
     </div>
   `;
 
   document.getElementById('resetBtn').onclick = resetProgress;
   document.getElementById('addQuestionBtn').onclick = openAddQuestionModal;
-  document.getElementById('summaryBtn').onclick = renderSummaryPage;
-  document.getElementById('prevBtn').onclick = () => { if (currentIndex > 0) { currentIndex--; renderQuestion(); renderSidebar(); } };
-  document.getElementById('nextBtn').onclick = () => { if (currentIndex < questions.length - 1) { currentIndex++; renderQuestion(); renderSidebar(); } };
+  document.getElementById('summaryBtn').onclick = () => renderSummaryPage();
 
   document.querySelectorAll('.tabs-row .tab-btn').forEach(tab => {
     tab.onclick = () => {
@@ -674,6 +793,10 @@ function renderApp() {
 
   renderQuestion();
   renderSidebar();
+
+  if (!opts.skipHashUpdate) {
+    pushHash({ topicSlug: topicToSlugMap[currentTopic] });
+  }
 }
 
 function renderQuestion() {
@@ -715,6 +838,7 @@ function renderQuestion() {
       <div class="title">${attempt.is_correct ? 'Correct!' : 'Not quite.'} Correct answer: ${q['option_' + q.correct_option]}</div>
       <div class="body">${q.explanation || ''}</div>
     </div>
+    <button class="summary-btn" id="retryBtn" style="margin-bottom:20px;">&#8635; Retry this question</button>
   ` : '';
 
   const submitHtml = attempt ? '' : `
@@ -741,15 +865,27 @@ function renderQuestion() {
     <div class="options">${optionsHtml}</div>
     ${submitHtml}
     ${explanationHtml}
+    <div class="question-nav-row">
+      <button class="nav-btn" id="prevBtn">Previous</button>
+      <button class="nav-btn" id="nextBtn">Next</button>
+    </div>
   `;
 
   document.getElementById('progressLabel').textContent = `${currentIndex + 1} / ${questions.length}`;
   document.getElementById('prevBtn').disabled = currentIndex === 0;
   document.getElementById('nextBtn').disabled = currentIndex === questions.length - 1;
+  document.getElementById('prevBtn').onclick = () => {
+    if (currentIndex > 0) { currentIndex--; renderQuestion(); renderSidebar(); }
+  };
+  document.getElementById('nextBtn').onclick = () => {
+    if (currentIndex < questions.length - 1) { currentIndex++; renderQuestion(); renderSidebar(); }
+  };
 
   if (!attempt) {
     document.getElementById('submitBtn').onclick = () => submitAnswer(q);
     startTimer();
+  } else {
+    document.getElementById('retryBtn').onclick = () => retryQuestion(q);
   }
 }
 
@@ -794,11 +930,15 @@ async function submitAnswer(q) {
     question_id: q.id,
     selected_option: selectedOption,
     is_correct: isCorrect,
-    time_taken_seconds: timeTaken
+    time_taken_seconds: timeTaken,
+    created_at: new Date().toISOString()
   };
 
   attempts[q.id] = record;
   allAttempts[q.id] = record;
+  if (!attemptsHistory[q.id]) attemptsHistory[q.id] = [];
+  attemptsHistory[q.id].push(record);
+
   renderQuestion();
   renderSidebar();
 
@@ -807,6 +947,21 @@ async function submitAnswer(q) {
   } catch (err) {
     console.error('Failed to save attempt to Supabase:', err);
   }
+}
+
+// Lets the person attempt the same question again. The previous attempt
+// stays in attemptsHistory (and in Supabase) so the summary page can show
+// how their time changed across attempts — it just clears the "answered"
+// state so the question becomes active again.
+function retryQuestion(q) {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  delete attempts[q.id];
+  delete allAttempts[q.id];
+  renderQuestion();
+  renderSidebar();
 }
 
 function renderSidebar() {
@@ -858,13 +1013,14 @@ async function resetProgress() {
   } catch (err) {
     console.error('Failed to clear attempts in Supabase:', err);
   }
-  questionIds.forEach(id => { delete attempts[id]; delete allAttempts[id]; });
+  questionIds.forEach(id => { delete attempts[id]; delete allAttempts[id]; delete attemptsHistory[id]; });
   currentIndex = 0;
   renderQuestion();
   renderSidebar();
 }
 
-function renderSummaryPage() {
+function renderSummaryPage(opts) {
+  opts = opts || {};
   if (timerInterval) {
     clearInterval(timerInterval);
     timerInterval = null;
@@ -887,19 +1043,36 @@ function renderSummaryPage() {
   const unattemptedPct = (stats.unattempted / total) * 100;
 
   const rowsHtml = questions.map((q, idx) => {
-    const a = attempts[q.id];
-    let resultTag, yourAnswer, timeTaken;
-    if (!a) {
+    const liveAttempt = attempts[q.id];
+    const history = attemptsHistory[q.id] || [];
+    let resultTag, yourAnswer;
+
+    if (!liveAttempt) {
       resultTag = '<span class="result-tag skipped">Skipped</span>';
       yourAnswer = '—';
-      timeTaken = '—';
     } else {
-      resultTag = a.is_correct
+      resultTag = liveAttempt.is_correct
         ? '<span class="result-tag correct">Correct</span>'
         : '<span class="result-tag incorrect">Incorrect</span>';
-      yourAnswer = q['option_' + a.selected_option];
-      timeTaken = formatTime(a.time_taken_seconds != null ? a.time_taken_seconds : 0);
+      yourAnswer = q['option_' + liveAttempt.selected_option];
     }
+
+    // Time column always reflects full attempt history (even mid-retry,
+    // when liveAttempt is temporarily cleared) so past times for improvement
+    // tracking are never hidden.
+    let timeCellHtml;
+    if (history.length === 0) {
+      timeCellHtml = '—';
+    } else if (history.length === 1) {
+      timeCellHtml = formatTime(history[0].time_taken_seconds != null ? history[0].time_taken_seconds : 0);
+    } else {
+      timeCellHtml = '<div class="attempt-history">' + history.map((a, i) => {
+        const t = formatTime(a.time_taken_seconds != null ? a.time_taken_seconds : 0);
+        const cls = a.is_correct ? 'hist-correct' : 'hist-incorrect';
+        return `<span class="hist-item"><span class="hist-num">#${i + 1}</span><span class="${cls}">${t}</span></span>`;
+      }).join('<span class="hist-arrow">&rarr;</span>') + '</div>';
+    }
+
     const correctAnswer = q['option_' + q.correct_option];
     const shortQ = q.question_text.length > 90 ? q.question_text.slice(0, 90) + '…' : q.question_text;
 
@@ -910,7 +1083,7 @@ function renderSummaryPage() {
         <td>${yourAnswer}</td>
         <td>${correctAnswer}</td>
         <td>${resultTag}</td>
-        <td>${timeTaken}</td>
+        <td>${timeCellHtml}</td>
       </tr>
     `;
   }).join('');
@@ -972,7 +1145,7 @@ function renderSummaryPage() {
             <th>Your answer</th>
             <th>Correct answer</th>
             <th>Result</th>
-            <th>Time</th>
+            <th>Time (per attempt)</th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
@@ -990,6 +1163,10 @@ function renderSummaryPage() {
       renderApp();
     };
   });
+
+  if (!opts.skipHashUpdate) {
+    pushHash({ topicSlug: topicToSlugMap[currentTopic], view: 'summary' });
+  }
 }
 
 function openAddQuestionModal() {
@@ -1132,6 +1309,7 @@ async function saveNewQuestion() {
     if (!allTopics.includes(selectedTopic)) {
       allTopics.push(selectedTopic);
       allTopics.sort();
+      rebuildSlugMaps();
     }
 
     if (selectedTopic === currentTopic) {
